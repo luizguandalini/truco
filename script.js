@@ -9,13 +9,22 @@ document.addEventListener("DOMContentLoaded", () => {
   const playerCardSlot = document.getElementById("player-card-slot");
   const opponentCardSlot = document.getElementById("opponent-card-slot");
   const trucoButton = document.getElementById("truco-button");
+  // NOVO: Elementos para resposta ao truco
+  const trucoResponseContainer = document.getElementById(
+    "truco-response-container"
+  );
+  const acceptButton = document.getElementById("accept-button");
+  const runButton = document.getElementById("run-button");
 
   // --- ÁUDIO ---
   const cardPlaySound = new Audio("assets/sons/card-play.mp3");
+  // NOVO: Som do truco
+  const trucoSound = new Audio("assets/sons/truco.mp3");
 
   // --- ESTADO GERAL DO JOGO ---
   let playerScore = 0;
   let opponentScore = 0;
+  let gameEnded = false; // NOVO: Flag para controlar o fim do jogo
 
   // --- ESTADO DA MÃO ATUAL (Hand State) ---
   let playerHand = [];
@@ -24,17 +33,12 @@ document.addEventListener("DOMContentLoaded", () => {
   let manilhas = [];
   let isPlayerTurn = true;
   let currentHandValue = 1;
-
   let vazaHistory = [];
   let vazaStarter = "player";
 
   // --- DEFINIÇÕES DO JOGO ---
   const suits = ["ouros", "espadas", "copas", "paus"];
   const ranks = ["4", "5", "6", "7", "Q", "J", "K", "A", "2", "3"];
-
-  // ############### BUG LATENTE CORRIGIDO ###############
-  // As chaves numéricas foram convertidas para strings para corresponder
-  // exatamente aos valores no array 'ranks'. Isso evita erros de lógica.
   const cardOrder = {
     4: 0,
     5: 1,
@@ -72,68 +76,49 @@ document.addEventListener("DOMContentLoaded", () => {
     return cardOrder[card.rank];
   }
   function setManilhas(viraCard) {
-    if (!viraCard) return; // Segurança extra
+    if (!viraCard) return;
     const viraRankIndex = ranks.indexOf(viraCard.rank);
     const manilhaRank = ranks[(viraRankIndex + 1) % ranks.length];
     manilhas = suits.map((suit) => ({ rank: manilhaRank, suit }));
   }
-
-  // Encontre a função renderCard no seu script.js e substitua por esta:
-
-  // Encontre a função renderCard e substitua por esta versão final:
-
   function renderCard(card, isFaceUp = false) {
-    // MUDANÇA: O log agora só acontece se a carta for virada para cima.
-    // Isso remove o "lixo" dos logs das cartas do oponente.
     if (isFaceUp) {
       console.log(`Desenhando: Rank=${card.rank}, Naipe=${card.suit}`);
     }
-
     const cardDiv = document.createElement("div");
     cardDiv.classList.add("card");
-
     if (isFaceUp) {
       setTimeout(() => cardDiv.classList.add("flipped"), 50);
     }
-
     const cardInner = document.createElement("div");
     cardInner.classList.add("card-inner");
-
     const cardFront = document.createElement("div");
     cardFront.classList.add("card-face", "card-front");
-
     if (card && card.rank && card.suit) {
       const rankTop = document.createElement("span");
       rankTop.className = "card-rank";
       rankTop.textContent = card.rank;
-
       const suitCharacters = {
         ouros: "♦",
         copas: "♥",
         espadas: "♠",
         paus: "♣",
       };
-
       const suitSpan = document.createElement("span");
       suitSpan.className = `card-suit suit-${card.suit}`;
       suitSpan.textContent = suitCharacters[card.suit];
-
       const rankBottom = document.createElement("span");
       rankBottom.className = "card-rank";
       rankBottom.textContent = card.rank;
-
       cardFront.appendChild(rankTop);
       cardFront.appendChild(suitSpan);
       cardFront.appendChild(rankBottom);
     }
-
     const cardBack = document.createElement("div");
     cardBack.classList.add("card-face", "card-back");
-
     cardInner.appendChild(cardFront);
     cardInner.appendChild(cardBack);
     cardDiv.appendChild(cardInner);
-
     return cardDiv;
   }
 
@@ -147,8 +132,10 @@ document.addEventListener("DOMContentLoaded", () => {
     return icons[suit];
   }
 
+  // --- LÓGICA DO TRUCO ---
   function handleTrucoRequest() {
-    if (currentHandValue > 1) return;
+    if (currentHandValue > 1 || !isPlayerTurn) return;
+    trucoSound.play(); // Toca o som do truco
     currentHandValue = 3;
     showStatusMessage("Você pediu TRUCO!");
     trucoButton.disabled = true;
@@ -159,14 +146,66 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         showStatusMessage("Oponente correu! Você venceu 1 tento.");
         updateScore("player", 1);
-        setTimeout(startNewHand, 2500);
+        if (!gameEnded) setTimeout(startNewHand, 2500);
       }
     }, 1500);
   }
   trucoButton.addEventListener("click", handleTrucoRequest);
 
+  // --- LÓGICA DE JOGABILIDADE ---
+  function opponentTurn() {
+    if (gameEnded) return;
+
+    // NOVO: IA para decidir se pede truco
+    const canTruco = currentHandValue === 1 && vazaHistory.length === 0;
+    const hasGoodCards =
+      opponentHand.filter((c) => getCardValue(c) >= 7).length >= 2;
+    if (canTruco && hasGoodCards && Math.random() < 0.4) {
+      handleOpponentTruco();
+      return; // Para a execução para esperar a resposta do jogador
+    }
+
+    const cardToPlay = opponentHand.shift();
+    if (!cardToPlay) return;
+    cardPlaySound.play();
+    const cardElement = renderCard(cardToPlay, true);
+    opponentCardSlot.innerHTML = "";
+    opponentCardSlot.appendChild(cardElement);
+    opponentHandElement.removeChild(opponentHandElement.firstChild);
+    if (vazaStarter === "player") {
+      setTimeout(endVaza, 1500);
+    } else {
+      isPlayerTurn = true;
+      showStatusMessage("Sua vez...");
+    }
+  }
+
+  // NOVO: Função para o oponente iniciar o pedido de truco
+  function handleOpponentTruco() {
+    trucoSound.play();
+    showStatusMessage("Oponente pediu TRUCO!");
+    trucoButton.disabled = true;
+    trucoResponseContainer.style.display = "flex";
+  }
+
+  // NOVO: Event listeners para os botões de resposta do jogador
+  acceptButton.addEventListener("click", () => {
+    currentHandValue = 3;
+    trucoResponseContainer.style.display = "none";
+    showStatusMessage("Você aceitou! Vale 3 tentos.");
+    // Como o oponente trucou no início do turno dele, ele agora joga a carta
+    setTimeout(opponentTurn, 1500);
+  });
+
+  runButton.addEventListener("click", () => {
+    trucoResponseContainer.style.display = "none";
+    showStatusMessage("Você correu! Oponente ganhou 1 tento.");
+    updateScore("opponent", 1);
+    if (!gameEnded) setTimeout(startNewHand, 2500);
+  });
+
   function playCard(card, cardElement) {
-    if (!isPlayerTurn || playerHand.length === 0) return;
+    if (!isPlayerTurn || playerHand.length === 0 || gameEnded) return;
     cardPlaySound.play();
     const cardIndex = playerHand.findIndex(
       (c) => c.rank === card.rank && c.suit === card.suit
@@ -183,23 +222,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function opponentTurn() {
-    const cardToPlay = opponentHand.shift();
-    if (!cardToPlay) return;
-    cardPlaySound.play();
-    const cardElement = renderCard(cardToPlay, true);
-    opponentCardSlot.innerHTML = "";
-    opponentCardSlot.appendChild(cardElement);
-    opponentHandElement.removeChild(opponentHandElement.firstChild);
-    if (vazaStarter === "player") {
-      setTimeout(endVaza, 1500);
-    } else {
-      isPlayerTurn = true;
-      showStatusMessage("Sua vez...");
-    }
-  }
-
   function endVaza() {
+    if (gameEnded) return;
     const playerCard = getCardFromSlot(playerCardSlot);
     const opponentCard = getCardFromSlot(opponentCardSlot);
     if (!playerCard || !opponentCard) return;
@@ -221,6 +245,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function checkHandWinner() {
+    if (gameEnded) return;
     playerCardSlot.innerHTML = "";
     opponentCardSlot.innerHTML = "";
     const playerVazas = vazaHistory.filter((v) => v === "player").length;
@@ -247,13 +272,17 @@ document.addEventListener("DOMContentLoaded", () => {
             : vazaHistory[0];
       }
       updateScore(handWinner, currentHandValue);
-      setTimeout(startNewHand, 2500);
+      if (!gameEnded) {
+        // Só inicia nova mão se o jogo não acabou
+        setTimeout(startNewHand, 2500);
+      }
     } else {
       startNextVaza();
     }
   }
 
   function startNextVaza() {
+    if (gameEnded) return;
     if (currentHandValue > 1) {
       trucoButton.disabled = true;
     }
@@ -266,21 +295,47 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- LÓGICA DE PONTUAÇÃO E FIM DE JOGO ---
   function updateScore(winner, points) {
+    if (gameEnded) return;
+
     if (winner === "player") {
       playerScore += points;
       showStatusMessage(`Você ganhou ${points} tento(s)!`);
     } else if (winner === "opponent") {
       opponentScore += points;
       showStatusMessage(`Oponente ganhou ${points} tento(s)!`);
-    } else {
+    } else if (winner !== "draw") {
       showStatusMessage("A mão empatou! Ninguém marca tentos.");
     }
     playerScoreElement.textContent = playerScore;
     opponentScoreElement.textContent = opponentScore;
+
+    // NOVO: Checa se o jogo acabou
+    if (playerScore >= 12 || opponentScore >= 12) {
+      endGame();
+    }
+  }
+
+  // NOVO: Função para finalizar a partida
+  function endGame() {
+    gameEnded = true;
+    const winner = playerScore >= 12 ? "VOCÊ VENCEU!" : "O OPONENTE VENCEU!";
+
+    setTimeout(() => {
+      statusMessageElement.style.flexDirection = "column";
+      statusMessageElement.innerHTML = `<h2>FIM DE JOGO</h2><p>${winner}</p><button id="play-again" class="truco-button">Jogar Novamente</button>`;
+      statusMessageElement.style.display = "flex";
+      statusMessageElement.style.zIndex = "300";
+
+      document.getElementById("play-again").addEventListener("click", () => {
+        location.reload(); // Reinicia a página para um novo jogo
+      });
+    }, 1500);
   }
 
   function startNewHand() {
+    if (gameEnded) return;
     vazaHistory = [];
     currentHandValue = 1;
     trucoButton.disabled = false;
@@ -322,10 +377,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showStatusMessage(message) {
+    statusMessageElement.style.flexDirection = "row";
     statusMessageElement.textContent = message;
-    statusMessageElement.style.display = "block";
+    statusMessageElement.style.display = "flex";
+    statusMessageElement.style.alignItems = "center";
     setTimeout(() => {
-      statusMessageElement.style.display = "none";
+      if (!gameEnded) {
+        statusMessageElement.style.display = "none";
+      }
     }, 2000);
   }
 

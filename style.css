@@ -300,3 +300,43 @@ body {
     text-align: center;
   }
 }
+
+/* Adicione estas regras no final do seu style.css */
+
+#truco-response-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.85);
+  padding: 30px;
+  border-radius: 15px;
+  z-index: 250;
+  display: flex;
+  gap: 20px;
+  border: 2px solid var(--accent-color);
+}
+
+#truco-response-container button {
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+#truco-response-container button:hover {
+  transform: scale(1.05);
+}
+
+#accept-button {
+  background-color: var(--accent-color);
+  color: #1a1a1a;
+}
+
+#run-button {
+  background-color: #d00000;
+  color: white;
+}
