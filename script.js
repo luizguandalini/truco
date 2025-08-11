@@ -9,7 +9,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const playerCardSlot = document.getElementById("player-card-slot");
   const opponentCardSlot = document.getElementById("opponent-card-slot");
   const trucoButton = document.getElementById("truco-button");
-  // NOVO: Elementos para resposta ao truco
   const trucoResponseContainer = document.getElementById(
     "truco-response-container"
   );
@@ -18,13 +17,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- ÁUDIO ---
   const cardPlaySound = new Audio("assets/sons/card-play.mp3");
-  // NOVO: Som do truco
   const trucoSound = new Audio("assets/sons/truco.mp3");
 
   // --- ESTADO GERAL DO JOGO ---
   let playerScore = 0;
   let opponentScore = 0;
-  let gameEnded = false; // NOVO: Flag para controlar o fim do jogo
+  let gameEnded = false;
+  let handStarter = "player";
 
   // --- ESTADO DA MÃO ATUAL (Hand State) ---
   let playerHand = [];
@@ -135,7 +134,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- LÓGICA DO TRUCO ---
   function handleTrucoRequest() {
     if (currentHandValue > 1 || !isPlayerTurn) return;
-    trucoSound.play(); // Toca o som do truco
+    trucoSound.play();
     currentHandValue = 3;
     showStatusMessage("Você pediu TRUCO!");
     trucoButton.disabled = true;
@@ -155,16 +154,13 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- LÓGICA DE JOGABILIDADE ---
   function opponentTurn() {
     if (gameEnded) return;
-
-    // NOVO: IA para decidir se pede truco
     const canTruco = currentHandValue === 1 && vazaHistory.length === 0;
     const hasGoodCards =
       opponentHand.filter((c) => getCardValue(c) >= 7).length >= 2;
     if (canTruco && hasGoodCards && Math.random() < 0.4) {
       handleOpponentTruco();
-      return; // Para a execução para esperar a resposta do jogador
+      return;
     }
-
     const cardToPlay = opponentHand.shift();
     if (!cardToPlay) return;
     cardPlaySound.play();
@@ -180,7 +176,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // NOVO: Função para o oponente iniciar o pedido de truco
   function handleOpponentTruco() {
     trucoSound.play();
     showStatusMessage("Oponente pediu TRUCO!");
@@ -188,12 +183,10 @@ document.addEventListener("DOMContentLoaded", () => {
     trucoResponseContainer.style.display = "flex";
   }
 
-  // NOVO: Event listeners para os botões de resposta do jogador
   acceptButton.addEventListener("click", () => {
     currentHandValue = 3;
     trucoResponseContainer.style.display = "none";
     showStatusMessage("Você aceitou! Vale 3 tentos.");
-    // Como o oponente trucou no início do turno dele, ele agora joga a carta
     setTimeout(opponentTurn, 1500);
   });
 
@@ -271,9 +264,16 @@ document.addEventListener("DOMContentLoaded", () => {
             ? "draw"
             : vazaHistory[0];
       }
+
+      // ############### LÓGICA CORRIGIDA ###############
+      // Define que o VENCEDOR da mão começa a próxima.
+      if (handWinner === "player" || handWinner === "opponent") {
+        handStarter = handWinner;
+      }
+      // Se empatar (draw), o handStarter não muda, mantendo quem começou a mão anterior.
+
       updateScore(handWinner, currentHandValue);
       if (!gameEnded) {
-        // Só inicia nova mão se o jogo não acabou
         setTimeout(startNewHand, 2500);
       }
     } else {
@@ -295,10 +295,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  // --- LÓGICA DE PONTUAÇÃO E FIM DE JOGO ---
   function updateScore(winner, points) {
     if (gameEnded) return;
-
     if (winner === "player") {
       playerScore += points;
       showStatusMessage(`Você ganhou ${points} tento(s)!`);
@@ -310,26 +308,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     playerScoreElement.textContent = playerScore;
     opponentScoreElement.textContent = opponentScore;
-
-    // NOVO: Checa se o jogo acabou
     if (playerScore >= 12 || opponentScore >= 12) {
       endGame();
     }
   }
 
-  // NOVO: Função para finalizar a partida
   function endGame() {
     gameEnded = true;
     const winner = playerScore >= 12 ? "VOCÊ VENCEU!" : "O OPONENTE VENCEU!";
-
     setTimeout(() => {
       statusMessageElement.style.flexDirection = "column";
       statusMessageElement.innerHTML = `<h2>FIM DE JOGO</h2><p>${winner}</p><button id="play-again" class="truco-button">Jogar Novamente</button>`;
       statusMessageElement.style.display = "flex";
       statusMessageElement.style.zIndex = "300";
-
       document.getElementById("play-again").addEventListener("click", () => {
-        location.reload(); // Reinicia a página para um novo jogo
+        location.reload();
       });
     }, 1500);
   }
@@ -358,9 +351,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     viraCardElement.innerHTML = "";
     viraCardElement.appendChild(renderCard(vira, true));
-    vazaStarter = "player";
-    isPlayerTurn = true;
-    showStatusMessage("Nova mão! Sua vez.");
+
+    vazaStarter = handStarter;
+    isPlayerTurn = vazaStarter === "player";
+
+    if (isPlayerTurn) {
+      showStatusMessage("Nova mão! Sua vez.");
+    } else {
+      showStatusMessage("Nova mão! Vez do oponente.");
+      setTimeout(opponentTurn, 1500);
+    }
   }
 
   function getCardFromSlot(slot) {
