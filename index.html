@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Super Truco</title>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div id="game-container">
+      <div id="scoreboard">
+        <div class="score">NÓS: <span id="player-score">0</span></div>
+        <div class="score">ELES: <span id="opponent-score">0</span></div>
+      </div>
+
+      <div id="opponent-area" class="player-area">
+        <p class="area-label">Oponente</p>
+        <div id="opponent-hand" class="hand"></div>
+      </div>
+
+      <div id="table">
+        <div id="vira-container">
+          <p>Vira</p>
+          <div id="vira-card" class="card"></div>
+        </div>
+        <div id="player-card-slot" class="card-slot"></div>
+        <div id="opponent-card-slot" class="card-slot"></div>
+      </div>
+
+      <div id="player-area" class="player-area">
+        <p class="area-label">Você</p>
+        <div id="player-hand" class="hand"></div>
+      </div>
+
+      <div id="action-buttons">
+        <button id="truco-button">TRUCO!</button>
+      </div>
+
+      <div id="status-message"></div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

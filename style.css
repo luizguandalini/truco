@@ -1,0 +1,225 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap");
+
+:root {
+  --table-color: #2c5b3b;
+  --card-bg: #f0f0f0;
+  --text-color: #ffffff;
+  --accent-color: #ffc107;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Poppins", sans-serif;
+  background-color: #1a1a1a;
+  color: var(--text-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+#game-container {
+  width: 100%;
+  max-width: 900px;
+  height: 100vh;
+  background-color: var(--table-color);
+  border-radius: 20px;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+  position: relative;
+}
+
+/* --- PLACAR E RÓTULOS --- */
+#scoreboard {
+  display: flex;
+  justify-content: space-around;
+  font-size: 1.5rem;
+  font-weight: 600;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+.player-area {
+  height: 200px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+}
+
+.area-label {
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+}
+
+.hand {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* --- LÓGICA DAS CARTAS CORRIGIDA --- */
+.card {
+  width: 120px;
+  height: 170px;
+  perspective: 1000px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+
+  /* CORREÇÃO 1: A carta começa virada para baixo por padrão */
+  transform: rotateY(180deg);
+}
+
+/* CORREÇÃO 2: A classe .flipped AGORA vira a carta para a FRENTE */
+.card.flipped .card-inner {
+  transform: rotateY(0deg);
+}
+
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  -webkit-backface-visibility: hidden; /* Safari */
+  backface-visibility: hidden;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* FRENTE DA CARTA (O que você vê) */
+.card-front {
+  background: linear-gradient(135deg, #ffffff, #e9e9e9);
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  /* CORREÇÃO 3: A frente não precisa de rotação */
+}
+
+/* VERSO DA CARTA (O que o oponente vê) */
+.card-back {
+  background-color: #1a1a1a;
+  /* CORREÇÃO 4: Aponta para a IMAGEM LOCAL e rotaciona */
+  background-image: url("assets/imagens/card-back.png");
+  background-size: cover;
+  background-position: center;
+  border: 3px solid #a07a2a;
+  transform: rotateY(180deg);
+}
+
+.card-rank {
+  font-size: 2rem;
+  font-weight: 700;
+}
+.card-suit {
+  font-size: 4rem; /* Aumentei um pouco para o caractere ficar mais visível */
+  line-height: 1; /* Garante alinhamento vertical perfeito */
+}
+.suit-ouros {
+  color: #ffb703;
+}
+.suit-copas {
+  color: #d00000;
+}
+.suit-espadas {
+  color: #333333;
+}
+.suit-paus {
+  color: #2d6a4f;
+}
+
+#player-hand .card:hover {
+  transform: translateY(-20px);
+}
+#player-hand .card {
+  /* Adicionado para suavizar o movimento de volta */
+  transition: transform 0.2s ease-out;
+}
+
+/* --- MESA E OUTROS --- */
+#table {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  height: 200px;
+}
+#vira-container {
+  text-align: center;
+  position: absolute;
+  left: 20px;
+}
+#vira-container p {
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.card-slot {
+  width: 125px;
+  height: 175px;
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  margin: 0 20px;
+}
+
+#action-buttons button {
+  padding: 15px 40px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  background-color: var(--accent-color);
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+  box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4);
+}
+#action-buttons button:hover {
+  background-color: #ffca2c;
+  transform: scale(1.05);
+}
+
+#status-message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 20px 40px;
+  border-radius: 10px;
+  font-size: 2rem;
+  font-weight: 600;
+  z-index: 200;
+  display: none;
+}
+
+#truco-button:disabled {
+  background-color: #777;
+  color: #aaa;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: scale(1);
+}
