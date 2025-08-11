@@ -405,3 +405,8 @@ input:focus + .slider {
 input:checked + .slider:before {
   transform: translateX(22px);
 }
+
+#raise-button {
+  background-color: #005f73; /* Um azul escuro para diferenciar */
+  color: white;
+}

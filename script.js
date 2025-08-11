@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const acceptButton = document.getElementById("accept-button");
   const runButton = document.getElementById("run-button");
-  // NOVO: Elementos para encobrir a carta
+  const raiseButton = document.getElementById("raise-button");
   const coverCardContainer = document.getElementById("cover-card-container");
   const coverCardCheckbox = document.getElementById("cover-card-checkbox");
 
@@ -22,7 +22,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const cardPlaySound = new Audio("assets/sons/card-play.mp3");
   const trucoSound = new Audio("assets/sons/truco.mp3");
 
-  // --- ESTADOS ---
+  // --- ESTADOS DO JOGO ---
   let playerScore = 0,
     opponentScore = 0;
   let gameEnded = false;
@@ -35,10 +35,14 @@ document.addEventListener("DOMContentLoaded", () => {
     currentHandValue = 1;
   let vazaHistory = [],
     vazaStarter = "player";
+  let proposedValue = 1;
+  let lastBettor = null;
+  let statusMessageTimeout = null; // NOVO: Controlador do tempo da mensagem de status
 
   // --- DEFINIÇÕES DO JOGO ---
   const suits = ["ouros", "espadas", "copas", "paus"];
   const ranks = ["4", "5", "6", "7", "Q", "J", "K", "A", "2", "3"];
+  // CORREÇÃO: Garante que todas as chaves são strings para consistência.
   const cardOrder = {
     4: 0,
     5: 1,
@@ -52,6 +56,7 @@ document.addEventListener("DOMContentLoaded", () => {
     3: 9,
   };
 
+  // --- FUNÇÕES DE SETUP ---
   function createDeck() {
     const deck = [];
     for (const suit of suits) {
@@ -122,46 +127,109 @@ document.addEventListener("DOMContentLoaded", () => {
     return cardDiv;
   }
 
-  // --- LÓGICA DE JOGABILIDADE ---
+  // --- LÓGICA DE APOSTAS (TRUCO, 6, 9, 12) ---
+  const betLevels = { 1: 3, 3: 6, 6: 9, 9: 12, 12: 12 };
+  const betNames = { 3: "TRUCO", 6: "SEIS", 9: "NOVE", 12: "DOZE" };
 
-  function playCard(card, cardElement) {
-    if (!isPlayerTurn || playerHand.length === 0 || gameEnded) return;
-
-    const isCovered = coverCardCheckbox.checked && vazaHistory.length > 0;
-
-    const cardIndex = playerHand.findIndex(
-      (c) => c.rank === card.rank && c.suit === card.suit
+  function raiseBet(raiser) {
+    if (
+      gameEnded ||
+      (!isPlayerTurn && raiser === "player") ||
+      (isPlayerTurn && raiser === "opponent")
+    )
+      return;
+    const nextValue = betLevels[currentHandValue];
+    if (lastBettor === raiser && nextValue > 3) return;
+    trucoSound.play();
+    proposedValue = nextValue;
+    lastBettor = raiser;
+    showStatusMessage(
+      `${raiser === "player" ? "Você" : "Oponente"} pediu ${
+        betNames[proposedValue]
+      }!`
     );
-    if (cardIndex > -1) playerHand.splice(cardIndex, 1);
-
-    cardElement.remove();
-
-    playerCardSlot.innerHTML = "";
-    const playedCardElement = renderCard(card, !isCovered);
-    playerCardSlot.appendChild(playedCardElement);
-    playerCardSlot.dataset.isCovered = isCovered;
-
-    cardPlaySound.play();
-    isPlayerTurn = false;
-
-    if (vazaStarter === "opponent") {
-      setTimeout(endVaza, 1500);
+    updateInterface();
+    if (raiser === "player") {
+      setTimeout(getAIResponse, 1500);
     } else {
-      setTimeout(opponentTurn, 1000);
+      showPlayerResponseOptions();
     }
   }
 
-  function opponentTurn() {
-    if (gameEnded) return;
+  function showPlayerResponseOptions() {
+    const nextValue = betLevels[currentHandValue];
+    raiseButton.textContent = `PEDIR ${betNames[nextValue]}`;
+    raiseButton.style.display =
+      currentHandValue < 12 && lastBettor === "opponent" ? "block" : "none";
+    trucoResponseContainer.style.display = "flex";
+  }
 
-    const canTruco = currentHandValue === 1 && vazaHistory.length === 0;
-    const hasGoodCards =
-      opponentHand.filter((c) => getCardValue(c) >= 7).length >= 2;
-    if (canTruco && hasGoodCards && Math.random() < 0.4) {
-      handleOpponentTruco();
-      return;
+  function getAIResponse() {
+    const hasManilha = opponentHand.some((c) => getCardValue(c) >= 11);
+    const decisionRandomizer = Math.random();
+    if (
+      (currentHandValue === 3 && hasManilha && decisionRandomizer < 0.5) ||
+      (currentHandValue === 6 && hasManilha)
+    ) {
+      raiseBet("opponent");
+    } else if (hasManilha || decisionRandomizer < 0.6) {
+      acceptBet();
+    } else {
+      runFromBet();
     }
+  }
 
+  function acceptBet() {
+    currentHandValue = proposedValue;
+    trucoResponseContainer.style.display = "none";
+    showStatusMessage(
+      `${
+        lastBettor === "opponent" ? "Você aceitou" : "Oponente aceitou"
+      }! A mão vale ${currentHandValue} tentos.`
+    );
+    updateInterface();
+    if (lastBettor === "opponent") {
+      isPlayerTurn = false;
+      setTimeout(opponentTurn, 1500);
+    } else {
+      isPlayerTurn = true;
+      showStatusMessage("Sua vez...");
+    }
+  }
+
+  function runFromBet() {
+    trucoResponseContainer.style.display = "none";
+    const winner = lastBettor === "player" ? "player" : "opponent";
+    const pointsWon = currentHandValue;
+    showStatusMessage(
+      `${lastBettor === "player" ? "Oponente correu" : "Você correu"}! ${
+        winner === "player" ? "Você" : "Oponente"
+      } ganhou ${pointsWon} tento(s).`
+    );
+    updateScore(winner, pointsWon);
+    if (!gameEnded) setTimeout(startNewHand, 2500);
+  }
+
+  trucoButton.addEventListener("click", () => raiseBet("player"));
+  acceptButton.addEventListener("click", acceptBet);
+  runButton.addEventListener("click", runFromBet);
+  raiseButton.addEventListener("click", () => raiseBet("player"));
+
+  // --- LÓGICA DE JOGABILIDADE ---
+  function opponentTurn() {
+    if (gameEnded || isPlayerTurn) return;
+    if (
+      lastBettor === null &&
+      vazaHistory.length === 0 &&
+      playerCardSlot.innerHTML === ""
+    ) {
+      const hasGoodCards =
+        opponentHand.filter((c) => getCardValue(c) >= 7).length >= 2;
+      if (hasGoodCards && Math.random() < 0.3) {
+        raiseBet("opponent");
+        return;
+      }
+    }
     const playerCardOnTable = getCardFromSlot(playerCardSlot);
     let shouldCover = false;
     if (vazaHistory.length > 0 && playerCardOnTable) {
@@ -169,39 +237,53 @@ document.addEventListener("DOMContentLoaded", () => {
       const opponentBestCardValue = Math.max(
         ...opponentHand.map((c) => getCardValue(c))
       );
-      // Se a carta do jogador for mais forte que a melhor carta do oponente, encobre
       if (playerCardValue > opponentBestCardValue) {
         shouldCover = true;
       }
     }
-
     const cardToPlay = opponentHand.shift();
     if (!cardToPlay) return;
-
     opponentCardSlot.innerHTML = "";
     const playedCardElement = renderCard(cardToPlay, !shouldCover);
     opponentCardSlot.appendChild(playedCardElement);
     opponentCardSlot.dataset.isCovered = shouldCover;
-
     opponentHandElement.removeChild(opponentHandElement.firstChild);
     cardPlaySound.play();
-
-    if (vazaStarter === "player") {
+    isPlayerTurn = true;
+    if (vazaStarter !== "opponent") {
       setTimeout(endVaza, 1500);
     } else {
-      isPlayerTurn = true;
-      showStatusMessage("Sua vez...");
+      updateInterface();
+    }
+  }
+
+  function playCard(card, cardElement) {
+    if (!isPlayerTurn || playerHand.length === 0 || gameEnded) return;
+    const isCovered = coverCardCheckbox.checked && vazaHistory.length > 0;
+    const cardIndex = playerHand.findIndex(
+      (c) => c.rank === card.rank && c.suit === card.suit
+    );
+    if (cardIndex > -1) playerHand.splice(cardIndex, 1);
+    cardElement.remove();
+    playerCardSlot.innerHTML = "";
+    const playedCardElement = renderCard(card, !isCovered);
+    playerCardSlot.appendChild(playedCardElement);
+    playerCardSlot.dataset.isCovered = isCovered;
+    cardPlaySound.play();
+    isPlayerTurn = false;
+    if (vazaStarter !== "player") {
+      setTimeout(endVaza, 1500);
+    } else {
+      updateInterface();
+      setTimeout(opponentTurn, 1000);
     }
   }
 
   function endVaza() {
     if (gameEnded) return;
-
     const isPlayerCardCovered = playerCardSlot.dataset.isCovered === "true";
     const isOpponentCardCovered = opponentCardSlot.dataset.isCovered === "true";
-
     let vazaWinner;
-
     if (isPlayerCardCovered && !isOpponentCardCovered) {
       vazaWinner = "opponent";
     } else if (!isPlayerCardCovered && isOpponentCardCovered) {
@@ -213,12 +295,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const opponentCard = getCardFromSlot(opponentCardSlot);
       const playerValue = getCardValue(playerCard);
       const opponentValue = getCardValue(opponentCard);
-
       if (playerValue > opponentValue) vazaWinner = "player";
       else if (opponentValue > playerValue) vazaWinner = "opponent";
       else vazaWinner = "draw";
     }
-
     vazaHistory.push(vazaWinner);
     vazaStarter = vazaWinner === "draw" ? vazaStarter : vazaWinner;
     const winnerMessage = {
@@ -227,23 +307,7 @@ document.addEventListener("DOMContentLoaded", () => {
       draw: "Cangou! (Empate)",
     };
     showStatusMessage(winnerMessage[vazaWinner]);
-
     setTimeout(checkHandWinner, 2000);
-  }
-
-  function startNextVaza() {
-    if (gameEnded) return;
-    coverCardContainer.style.display = "flex";
-    if (currentHandValue > 1) {
-      trucoButton.disabled = true;
-    }
-    isPlayerTurn = vazaStarter === "player";
-    if (!isPlayerTurn) {
-      showStatusMessage("Vez do oponente...");
-      setTimeout(opponentTurn, 1000);
-    } else {
-      showStatusMessage("Sua vez...");
-    }
   }
 
   function checkHandWinner() {
@@ -285,16 +349,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function startNextVaza() {
+    if (gameEnded) return;
+    isPlayerTurn = vazaStarter === "player";
+    updateInterface();
+    if (!isPlayerTurn) {
+      setTimeout(opponentTurn, 1000);
+    } else {
+      showStatusMessage("Sua vez...");
+    }
+  }
+
+  // --- FUNÇÕES DE ESTADO, UI E FIM DE JOGO ---
+  function updateInterface() {
+    const canPlayerBet =
+      isPlayerTurn && lastBettor !== "player" && currentHandValue < 12;
+    trucoButton.style.display = canPlayerBet ? "block" : "none";
+    if (canPlayerBet) {
+      trucoButton.textContent = betNames[betLevels[currentHandValue]];
+    }
+    const canCover = isPlayerTurn && vazaHistory.length > 0;
+    coverCardContainer.style.display = canCover ? "flex" : "none";
+  }
+
   function updateScore(winner, points) {
     if (gameEnded) return;
     if (winner === "player") {
       playerScore += points;
-      showStatusMessage(`Você ganhou ${points} tento(s)!`);
     } else if (winner === "opponent") {
       opponentScore += points;
-      showStatusMessage(`Oponente ganhou ${points} tento(s)!`);
-    } else if (winner !== "draw") {
-      showStatusMessage("A mão empatou! Ninguém marca tentos.");
     }
     playerScoreElement.textContent = playerScore;
     opponentScoreElement.textContent = opponentScore;
@@ -317,57 +400,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 1500);
   }
 
-  function handleTrucoRequest() {
-    if (currentHandValue > 1 || !isPlayerTurn) return;
-    trucoSound.play();
-    currentHandValue = 3;
-    showStatusMessage("Você pediu TRUCO!");
-    trucoButton.disabled = true;
-    setTimeout(() => {
-      const hasManilha = opponentHand.some((t) => getCardValue(t) >= 11);
-      if (hasManilha || Math.random() < 0.5) {
-        showStatusMessage("Oponente ACEITOU! Vale 3!");
-      } else {
-        showStatusMessage("Oponente correu! Você venceu 1 tento.");
-        updateScore("player", 1);
-        if (!gameEnded) setTimeout(startNewHand, 2500);
-      }
-    }, 1500);
-  }
-
-  function handleOpponentTruco() {
-    trucoSound.play();
-    showStatusMessage("Oponente pediu TRUCO!");
-    trucoButton.disabled = true;
-    trucoResponseContainer.style.display = "flex";
-  }
-
-  acceptButton.addEventListener("click", () => {
-    currentHandValue = 3;
-    trucoResponseContainer.style.display = "none";
-    showStatusMessage("Você aceitou! Vale 3 tentos.");
-    setTimeout(opponentTurn, 1500);
-  });
-
-  runButton.addEventListener("click", () => {
-    trucoResponseContainer.style.display = "none";
-    showStatusMessage("Você correu! Oponente ganhou 1 tento.");
-    updateScore("opponent", 1);
-    if (!gameEnded) setTimeout(startNewHand, 2500);
-  });
-
   function startNewHand() {
     if (gameEnded) return;
-
+    vazaHistory = [];
+    currentHandValue = 1;
+    lastBettor = null;
+    proposedValue = 1;
     coverCardContainer.style.display = "none";
     coverCardCheckbox.checked = false;
     playerCardSlot.dataset.isCovered = "false";
     opponentCardSlot.dataset.isCovered = "false";
-
-    vazaHistory = [];
-    currentHandValue = 1;
-    trucoButton.disabled = false;
-
     const deck = createDeck();
     shuffleDeck(deck);
     vira = deck.pop();
@@ -376,7 +418,6 @@ document.addEventListener("DOMContentLoaded", () => {
     opponentHand = deck.slice(3, 6);
     playerHandElement.innerHTML = "";
     opponentHandElement.innerHTML = "";
-
     playerHand.forEach((card) => {
       const cardElement = renderCard(card, true);
       cardElement.addEventListener("click", () => playCard(card, cardElement));
@@ -386,13 +427,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const cardElement = renderCard({}, false);
       opponentHandElement.appendChild(cardElement);
     });
-
     viraCardElement.innerHTML = "";
     viraCardElement.appendChild(renderCard(vira, true));
-
     vazaStarter = handStarter;
     isPlayerTurn = vazaStarter === "player";
-
+    updateInterface();
     if (isPlayerTurn) {
       showStatusMessage("Nova mão! Sua vez.");
     } else {
@@ -414,16 +453,23 @@ document.addEventListener("DOMContentLoaded", () => {
     return { rank, suit };
   }
 
-  function showStatusMessage(message) {
+  // FUNÇÃO DE MENSAGEM ATUALIZADA
+  function showStatusMessage(message, duration = 2500) {
+    if (
+      trucoResponseContainer.style.display === "flex" &&
+      !message.includes("pediu")
+    )
+      return;
+    clearTimeout(statusMessageTimeout);
     statusMessageElement.style.flexDirection = "row";
     statusMessageElement.textContent = message;
     statusMessageElement.style.display = "flex";
     statusMessageElement.style.alignItems = "center";
-    setTimeout(() => {
+    statusMessageTimeout = setTimeout(() => {
       if (!gameEnded) {
         statusMessageElement.style.display = "none";
       }
-    }, 2000);
+    }, duration);
   }
 
   startNewHand();
